@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-label="Cybersecurity">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D8202B"/>
+      <stop offset="100%" stop-color="#4268B2"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <path d="M600 140 L860 260 L820 560 L600 680 L380 560 L340 260 Z" fill="#ffffff" opacity="0.18"/>
+  <path d="M600 200 L800 290 L770 540 L600 620 L430 540 L400 290 Z" fill="#EFB51A" opacity="0.8"/>
+  <circle cx="600" cy="420" r="90" fill="#4268B2"/>
+  <rect x="560" y="380" width="80" height="120" rx="16" fill="#ffffff" opacity="0.8"/>
+  <circle cx="600" cy="380" r="30" fill="#ffffff"/>
+  <text x="470" y="730" font-family="Work Sans, Arial, sans-serif" font-size="44" fill="#ffffff" font-weight="600">Cybersecurity</text>
+</svg>

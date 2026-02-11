@@ -1,0 +1,4 @@
+FRONTEND_BRANCH=main
+CMS_REPO=git@github.com:your-org/wccms.git
+CMS_BRANCH=main
+CMS_DIR=wccms

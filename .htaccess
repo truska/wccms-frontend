@@ -1,0 +1,21 @@
+RewriteEngine On
+RewriteBase /
+
+ErrorDocument 404 /error/404.html
+ErrorDocument 403 /error/403.html
+
+# Preserve HTTP Authorization headers (for APIs, CMS auth, etc.)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Leave ACME/.well-known and robots.txt untouched
+RewriteCond %{REQUEST_URI} ^/?\.well-known [NC,OR]
+RewriteCond %{REQUEST_URI} ^/?robots\.txt$ [NC]
+RewriteRule ^ - [L]
+
+# Route home page through inside.php
+RewriteRule ^$ inside.php [QSA,L]
+
+# Route all non-files and non-directories through inside.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ inside.php?url=$1 [QSA,L]
