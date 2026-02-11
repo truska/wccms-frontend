@@ -4,7 +4,7 @@ require_once __DIR__ . '/prefs.php';
 require_once __DIR__ . '/lib/cms_log.php';
 
 $baseURL = cms_base_url();
-$pageTitle = $pageTitle ?? 'ITFix - Managed IT Services';
+$pageTitle = $pageTitle ?? 'wITeCanvas - Web Design & Development';
 ?>
 <!doctype html>
 <html lang="en">

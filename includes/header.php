@@ -9,7 +9,7 @@
       <div class="col-lg-5 text-center text-lg-start">
         <div class="logo-block d-inline-flex align-items-center gap-3">
           <a href="<?php echo $baseURL; ?>/" class="logo-link">
-            <img src="<?php echo $baseURL; ?>/filestore/images/logos/itfix-logo.png" alt="<?php echo cms_h(cms_pref('prefSiteName', 'ITFix')); ?> logo" class="img-fluid site-logo">
+            <img src="<?php echo $baseURL; ?>/filestore/images/logos/witecanvas-logo-l.png" alt="<?php echo cms_h(cms_pref('prefSiteName', 'ITFix')); ?> logo" class="img-fluid site-logo">
           </a>
         </div>
       </div>
