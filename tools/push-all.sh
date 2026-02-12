@@ -14,7 +14,7 @@ push_repo() {
 
   echo "==> ${label}: pushing ${BRANCH}"
   while [ "${attempt}" -le "${RETRIES}" ]; do
-    if git -C "${repo_dir}" push origin "${BRANCH}"; then
+    if (cd "${repo_dir}" && git push origin "${BRANCH}"); then
       echo "==> ${label}: push ok"
       return 0
     fi
@@ -29,4 +29,3 @@ push_repo() {
 
 push_repo "${FRONTEND_DIR}" "frontend"
 push_repo "${BACKEND_DIR}" "backend"
-
