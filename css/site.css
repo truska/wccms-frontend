@@ -73,14 +73,14 @@ h1, h2, h3, h4, h5 {
 }
 
 .dev-banner {
-  background: #1a9b4f;
+  background: #f59e0b;
   color: #111;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 6px 12px;
   text-align: center;
-  border-bottom: 2px solid #0f7a3c;
+  border-bottom: 2px solid #b45309;
 }
 
 .nav-divider {

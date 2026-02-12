@@ -1,4 +1,49 @@
 <footer id="contact" class="site-footer">
+  <?php
+  $siteFooterLogo = trim((string) cms_pref('prefLogo1', 'itfix-logo-sq.png'));
+  $footerServiceLinks = [];
+  require_once __DIR__ . '/lib/menu.php';
+  $mainMenu = menu_load_menu('main');
+  if ($mainMenu) {
+    $footerColumnItems = menu_load_footer_items((int) $mainMenu['id'], 3);
+    foreach ($footerColumnItems as $footerItem) {
+      $linkLabel = trim(menu_item_label($footerItem));
+      if ($linkLabel === '') {
+        continue;
+      }
+      $footerServiceLinks[] = [
+        'label' => $linkLabel,
+        'url' => menu_item_url($footerItem, $baseURL),
+        'target' => menu_item_target($footerItem),
+      ];
+    }
+
+    if (empty($footerServiceLinks)) {
+      $mainItems = menu_load_menu_items((int) $mainMenu['id']);
+      $mainTree = menu_build_tree($mainItems);
+      foreach ($mainTree as $topItem) {
+        if (strtolower(menu_item_label($topItem)) !== 'services') {
+          continue;
+        }
+        foreach (($topItem['children'] ?? []) as $childItem) {
+          if (menu_item_is_divider($childItem)) {
+            continue;
+          }
+          $linkLabel = trim(menu_item_label($childItem));
+          if ($linkLabel === '') {
+            continue;
+          }
+          $footerServiceLinks[] = [
+            'label' => $linkLabel,
+            'url' => menu_item_url($childItem, $baseURL),
+            'target' => menu_item_target($childItem),
+          ];
+        }
+        break;
+      }
+    }
+  }
+  ?>
   <div class="container">
     <div class="row g-4">
       <div class="col-md-6 col-lg-3">
@@ -26,10 +71,20 @@
       <div class="col-md-6 col-lg-3">
         <h5>Services</h5>
         <ul class="footer-list">
-          <li><a href="<?php echo $baseURL; ?>/#service-helpdesk">Helpdesk Support</a></li>
-          <li><a href="<?php echo $baseURL; ?>/#service-network">Network Management</a></li>
-          <li><a href="<?php echo $baseURL; ?>/#service-cybersecurity">Cybersecurity</a></li>
-          <li><a href="<?php echo $baseURL; ?>/#service-strategy">Strategic Planning</a></li>
+          <?php if (!empty($footerServiceLinks)): ?>
+            <?php foreach ($footerServiceLinks as $serviceLink): ?>
+              <li>
+                <a href="<?php echo cms_h($serviceLink['url']); ?>"<?php echo $serviceLink['target'] !== '' ? ' target="' . cms_h($serviceLink['target']) . '" rel="noopener"' : ''; ?>>
+                  <?php echo cms_h($serviceLink['label']); ?>
+                </a>
+              </li>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <li><a href="<?php echo $baseURL; ?>/#service-helpdesk">Helpdesk Support</a></li>
+            <li><a href="<?php echo $baseURL; ?>/#service-network">Network Management</a></li>
+            <li><a href="<?php echo $baseURL; ?>/#service-cybersecurity">Cybersecurity</a></li>
+            <li><a href="<?php echo $baseURL; ?>/#service-strategy">Strategic Planning</a></li>
+          <?php endif; ?>
         </ul>
       </div>
       <div class="col-md-6 col-lg-3">
@@ -40,7 +95,7 @@
           <a href="#" aria-label="X"><i class="fa-brands fa-x-twitter"></i></a>
         </div>
         <p class="small">Business hours: Mon-Fri 8am-6pm</p>
-        <img src="<?php echo $baseURL; ?>/filestore/images/logos/itfix-logo-sq.png" alt="ITFix logo highlight" class="img-fluid footer-logo">
+        <img src="<?php echo $baseURL; ?>/filestore/images/logos/<?php echo cms_h($siteFooterLogo !== '' ? $siteFooterLogo : 'itfix-logo-sq.png'); ?>" alt="ITFix logo highlight" class="img-fluid footer-logo">
       </div>
     </div>
     <div class="footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">

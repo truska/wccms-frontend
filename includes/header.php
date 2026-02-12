@@ -3,13 +3,14 @@
     Development Site
   </div>
 <?php endif; ?>
+<?php $siteHeaderLogo = trim((string) cms_pref('prefLogo', 'witecanvas-logo-l.png')); ?>
 <header class="site-header border-bottom">
   <div class="container py-3 py-lg-4">
     <div class="row align-items-center g-3">
       <div class="col-lg-5 text-center text-lg-start">
         <div class="logo-block d-inline-flex align-items-center gap-3">
           <a href="<?php echo $baseURL; ?>/" class="logo-link">
-            <img src="<?php echo $baseURL; ?>/filestore/images/logos/witecanvas-logo-l.png" alt="<?php echo cms_h(cms_pref('prefSiteName', 'ITFix')); ?> logo" class="img-fluid site-logo">
+            <img src="<?php echo $baseURL; ?>/filestore/images/logos/<?php echo cms_h($siteHeaderLogo !== '' ? $siteHeaderLogo : 'witecanvas-logo-l.png'); ?>" alt="<?php echo cms_h(cms_pref('prefSiteName', 'ITFix')); ?> logo" class="img-fluid site-logo">
           </a>
         </div>
       </div>
