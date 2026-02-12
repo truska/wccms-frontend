@@ -1,1 +1,4 @@
 /wccms/
+/stats/*
+!/stats/.htaccess
+!/stats/index.php
