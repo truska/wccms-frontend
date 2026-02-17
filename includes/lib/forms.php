@@ -167,11 +167,13 @@ function cms_load_form_fields(int $formId): array {
     }
 
     // Normalize override values so the form renderer can use a single key.
+    // Use form_field_id for input names to avoid collisions when the same
+    // field type is used more than once on a form.
     foreach ($rows as &$row) {
       $row['label'] = $row['label_override'] ?: $row['label'];
       $row['placeholder'] = $row['placeholder'] ?? '';
       $row['help_text'] = $row['help_text'] ?? '';
-      $row['input_name'] = 'field_' . $row['field_id'];
+      $row['input_name'] = 'field_' . $row['form_field_id'];
       $row['name'] = $row['input_name'];
     }
     unset($row);
@@ -281,9 +283,86 @@ function cms_collect_request_meta(bool $doIpLookup): array {
 
   if ($doIpLookup) {
     $meta['ip_lookup'] = cms_lookup_ip_data($ip);
+    if (empty($meta['ip_lookup']['country'])) {
+      $headerCountry = cms_header_country_code();
+      if ($headerCountry !== '') {
+        $meta['ip_lookup']['country'] = $headerCountry;
+      }
+    }
   }
 
   return $meta;
+}
+
+function cms_header_country_code(): string {
+  $candidates = [
+    $_SERVER['HTTP_CF_IPCOUNTRY'] ?? '',
+    $_SERVER['GEOIP_COUNTRY_CODE'] ?? '',
+    $_SERVER['HTTP_X_COUNTRY_CODE'] ?? '',
+  ];
+
+  foreach ($candidates as $candidate) {
+    $code = strtoupper(trim((string) $candidate));
+    if (preg_match('/^[A-Z]{2}$/', $code)) {
+      return $code;
+    }
+  }
+
+  return '';
+}
+
+function cms_spam_notes_mode(): string {
+  $requested = strtolower(trim((string) ($_REQUEST['spamdebug'] ?? '')));
+  if ($requested === 'all' || $requested === 'hits') {
+    return $requested;
+  }
+
+  $pref = strtolower(trim((string) cms_pref('prefSpamNotesMode', 'hits')));
+  if ($pref === 'all' || $pref === 'hits') {
+    return $pref;
+  }
+
+  return 'hits';
+}
+
+function cms_build_spam_rule_audit(array $valuesByFormFieldId, array $rules, bool $includeZero = false): array {
+  $lines = [];
+
+  foreach ($rules as $rule) {
+    $type = strtolower((string) ($rule['rule_code'] ?? ''));
+    $formFieldId = (int) ($rule['form_field_id'] ?? 0);
+    $points = (int) ($rule['points'] ?? 0);
+    if ($type === '' || $points === 0 || $formFieldId <= 0) {
+      continue;
+    }
+
+    $valueTrimmed = trim((string) ($valuesByFormFieldId[$formFieldId] ?? ''));
+    $matched = false;
+
+    if ($valueTrimmed !== '') {
+      if ($type === 'field_has_link') {
+        $matched = cms_value_has_link($valueTrimmed);
+      } elseif ($type === 'field_ends_caps') {
+        $letters = preg_replace('/[^A-Za-z]/', '', $valueTrimmed);
+        if (strlen($letters) >= 2) {
+          $tail = substr($letters, -2);
+          $matched = ($tail === strtoupper($tail));
+        }
+      }
+    }
+
+    if (!$matched && !$includeZero) {
+      continue;
+    }
+
+    $ruleName = trim((string) ($rule['name'] ?? ''));
+    if ($ruleName === '') {
+      $ruleName = trim((string) ($rule['rule_code'] ?? 'rule'));
+    }
+    $lines[] = 'Rule [' . $ruleName . '] ' . ($matched ? $points : 0);
+  }
+
+  return $lines;
 }
 
 function cms_country_lookup(string $code): ?array {
@@ -306,7 +385,7 @@ function cms_country_lookup(string $code): ?array {
 function cms_score_honeypot(array $honeypotValues, array &$reasons, int $points = 40): int {
   foreach ($honeypotValues as $name => $value) {
     if (trim((string) $value) !== '') {
-      $reasons[] = 'Honeypot field "' . $name . '" had a value.';
+      $reasons[] = 'Honeypot [' . $name . '] ' . $points;
       return $points;
     }
   }

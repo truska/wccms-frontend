@@ -70,16 +70,34 @@ function cms_map_form_fields(array $fields, array $values): array {
     $name = $field['input_name'] ?? $field['name'] ?? '';
     $fieldId = (int) ($field['field_id'] ?? 0);
     $mapKey = $idMap[$fieldId] ?? '';
-    if ($name === '' || $mapKey === '') {
-      if ($name !== '' && array_key_exists($name, $mapped)) {
-        $mapKey = $name;
-      } else {
-        continue;
-      }
-    }
-    if (!array_key_exists($mapKey, $mapped)) {
+
+    if ($name === '') {
       continue;
     }
+
+    // Avoid clobbering canonical keys (name/email/tel/message) when the same
+    // field type appears multiple times (e.g. two "text" fields).
+    if ($mapKey !== '' && !empty($mapped[$mapKey])) {
+      $mapKey = '';
+    }
+
+    if ($mapKey === '' && array_key_exists($name, $mapped) && empty($mapped[$name])) {
+      $mapKey = $name;
+    }
+
+    if ($mapKey === '') {
+      foreach (['alt1', 'alt2', 'alt3', 'alt4', 'alt5'] as $altKey) {
+        if (empty($mapped[$altKey])) {
+          $mapKey = $altKey;
+          break;
+        }
+      }
+    }
+
+    if ($mapKey === '') {
+      continue;
+    }
+
     $mapped[$mapKey] = $values[$name] ?? null;
   }
 
@@ -163,9 +181,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Gather metadata for logging and admin email context.
-    $meta = cms_collect_request_meta(true);
+    $meta = cms_collect_request_meta($spamLookupEnabled);
+    $spamNotesMode = cms_spam_notes_mode();
+    $includeZeroChecks = ($spamNotesMode === 'all');
     $spamReasons = [];
+    $spamAuditLines = [];
     $spamScore = cms_score_honeypot($honeypotValues, $spamReasons, $honeypotPoints);
+    foreach ($honeypotValues as $honeypotField => $honeypotValue) {
+      $honeypotHit = (trim((string) $honeypotValue) !== '');
+      if ($honeypotHit || $includeZeroChecks) {
+        $spamAuditLines[] = 'Honeypot [' . $honeypotField . '] ' . ($honeypotHit ? $honeypotPoints : 0);
+      }
+    }
 
     $mappedFields = cms_map_form_fields($fields, $fieldValues);
     $valuesByFormFieldId = [];
@@ -177,10 +204,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
     // Apply dynamic rules only when IP spam lookup is enabled.
-    if ($spamLookupEnabled) {
-      $rules = cms_load_spam_rules((int) ($form['id'] ?? 0));
-      $spamScore += cms_score_spam_rules($valuesByFormFieldId, $rules, $spamReasons);
-    }
+    $rules = cms_load_spam_rules((int) ($form['id'] ?? 0));
+    $spamScore += cms_score_spam_rules($valuesByFormFieldId, $rules, $spamReasons);
+    $spamAuditLines = array_merge($spamAuditLines, cms_build_spam_rule_audit($valuesByFormFieldId, $rules, $includeZeroChecks));
 
     $spamAction = 'ok';
     $sendAdmin = true;
@@ -204,11 +230,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $countryName = $countryRow['name'] ?? ($ipData['country'] ?? null);
     $countrySpamScore = (int) ($countryRow['formspamscore'] ?? 0);
+    $countryCode = strtoupper(trim((string) ($ipData['country'] ?? '')));
 
-    if ($spamLookupEnabled && $countrySpamScore > 0) {
+    if ($countrySpamScore > 0) {
       $spamScore += $countrySpamScore;
-      $spamReasons[] = 'Country spam score: ' . $countrySpamScore;
+      $spamReasons[] = 'Country [' . $countryCode . '] ' . $countrySpamScore;
     }
+    if ($countryCode !== '' || $includeZeroChecks) {
+      $spamAuditLines[] = 'Country [' . ($countryCode !== '' ? $countryCode : 'n/a') . '] ' . $countrySpamScore;
+    }
+    $spamNotesOutput = $includeZeroChecks ? $spamAuditLines : $spamReasons;
+    $spamNotesText = !empty($spamNotesOutput) ? implode("\n", $spamNotesOutput) : null;
     $submissionId = null;
 
     // Persist the submission before sending emails so we can track delivery outcomes.
@@ -217,14 +249,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare(
           'INSERT INTO contact_forms
             (form_id, name, email, tel, message, alt1, alt2, alt3, alt4, alt5,
-             spam_score, spam_action, is_spam, honeypot_hit,
+             spam_score, spam_action, spam_notes, is_spam, honeypot_hit,
              ip, ip_country, ip_country_code, ip_region, ip_city, ip_timezone, ip_postal,
              ip_org, ip_isp, ip_lat, ip_lon,
              user_agent, browser, platform, language, referer,
              data_json, meta_json, showonweb, archived)
            VALUES
             (:form_id, :name, :email, :tel, :message, :alt1, :alt2, :alt3, :alt4, :alt5,
-             :spam_score, :spam_action, :is_spam, :honeypot_hit,
+             :spam_score, :spam_action, :spam_notes, :is_spam, :honeypot_hit,
              :ip, :ip_country, :ip_country_code, :ip_region, :ip_city, :ip_timezone, :ip_postal,
              :ip_org, :ip_isp, :ip_lat, :ip_lon,
              :user_agent, :browser, :platform, :language, :referer,
@@ -243,6 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           ':alt5' => $mappedFields['alt5'],
           ':spam_score' => $spamScore,
           ':spam_action' => $spamAction,
+          ':spam_notes' => $spamNotesText,
           ':is_spam' => ($spamAction !== 'ok') ? 1 : 0,
           ':honeypot_hit' => ($spamScore > 0 && !empty(array_filter($honeypotValues))) ? 1 : 0,
           ':ip' => $meta['ip'] ?? null,
@@ -292,6 +325,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Send the admin notification with full detail and metadata.
     if ($sendAdmin && $adminEmail) {
+      $honeypotPassed = empty(array_filter($honeypotValues));
+      $honeypotLabel = $honeypotPassed ? 'PASSED' : 'FAILED';
+      $honeypotColor = $honeypotPassed ? '#198754' : '#dc3545';
+      $submissionLabel = $submissionId ? (' [' . (int) $submissionId . ']') : '';
+
       $detailsRows = '';
       foreach ($fieldValues as $key => $value) {
         $label = $key;
@@ -315,11 +353,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">' . cms_h((string) ($meta['platform'] ?? '')) . '</td></tr>';
       $metaRows .= '<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;"><strong>Language</strong></td>'
         . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">' . cms_h((string) ($meta['language'] ?? '')) . '</td></tr>';
+      $metaRows .= '<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;"><strong>Spam Score</strong></td>'
+        . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">' . cms_h((string) $spamScore) . ' (' . cms_h((string) $spamAction) . ') [' . cms_h((string) $spamOkThreshold) . ' | ' . cms_h((string) $spamNoSendThreshold) . ' | ' . cms_h((string) $spamNoSaveThreshold) . ']</td></tr>';
 
       if (!empty($ipData)) {
+        $metaRows .= '<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;"><strong>Country Code</strong></td>'
+          . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">' . cms_h((string) ($ipData['country'] ?? '')) . '</td></tr>';
         $metaRows .= '<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;"><strong>Location</strong></td>'
           . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">'
-          . cms_h(($ipData['city'] ?? '') . ', ' . ($ipData['region'] ?? '') . ' ' . ($countryName ?? ''))
+          . cms_h(trim((string) (($ipData['city'] ?? '') . ', ' . ($ipData['region'] ?? '') . ' ' . ($countryName ?? ''))))
           . '</td></tr>';
         $metaRows .= '<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;"><strong>Timezone</strong></td>'
           . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">' . cms_h((string) ($ipData['timezone'] ?? '')) . '</td></tr>';
@@ -332,8 +374,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           . '<td style="padding:6px 10px;border:1px solid #e5e7eb;">' . cms_h(implode(' | ', $spamReasons)) . '</td></tr>';
       }
 
-      $adminBody = '<h2>New Contact Submission</h2>'
-        . '<p><strong>Form:</strong> ' . cms_h((string) ($form['name'] ?? 'Contact')) . '</p>'
+      $adminBody = '<h2>New Contact Submission'
+        . '<span style="font-size:12px;font-weight:400;color:#9ca3af;">' . cms_h($submissionLabel) . '</span>'
+        . '</h2>'
+        . '<p><strong>Form:</strong> ' . cms_h((string) ($form['name'] ?? 'Contact'))
+        . ' <span style="font-size:12px;font-weight:600;color:#b8860b;margin-left:8px;"><i class="fa-regular fa-honey-pot" aria-hidden="true"></i></span>'
+        . ' <span style="font-size:12px;font-weight:600;color:' . $honeypotColor . ';margin-left:2px;">' . $honeypotLabel . '</span>'
+        . '</p>'
         . '<h3>Submitted Details</h3>'
         . '<table style="border-collapse:collapse;width:100%;">' . $detailsRows . '</table>'
         . '<h3 style="margin-top:18px;">Meta / Device Info</h3>'

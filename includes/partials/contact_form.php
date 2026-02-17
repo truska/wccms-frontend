@@ -82,7 +82,7 @@ $contactSlug = $contactSlug ?? 'contact-itfix';
                   $hasError = isset($fieldErrors[$name]);
                   $tooltip = $field['tooltip'] ?? '';
                 ?>
-                <div class="mb-3">
+                <div class="mb-4">
                   <?php if ($type === 'checkbox'): ?>
                     <div class="form-check">
                       <input class="form-check-input <?php echo $hasError ? 'is-invalid' : ''; ?>" type="checkbox" name="<?php echo cms_h($name); ?>" id="<?php echo cms_h($name); ?>" value="Yes" <?php echo ($value === 'Yes') ? 'checked' : ''; ?>>
@@ -109,7 +109,7 @@ $contactSlug = $contactSlug ?? 'contact-itfix';
                     <?php endif; ?>
                   <?php endif; ?>
                   <?php if (!empty($field['help_text'])): ?>
-                    <small class="form-text text-muted"><?php echo cms_h((string) $field['help_text']); ?></small>
+                    <small class="form-text text-muted mt-2 d-block"><?php echo cms_h((string) $field['help_text']); ?></small>
                   <?php endif; ?>
                   <?php if ($hasError): ?>
                     <div class="invalid-feedback"><?php echo cms_h($fieldErrors[$name]); ?></div>
@@ -118,7 +118,7 @@ $contactSlug = $contactSlug ?? 'contact-itfix';
               <?php endforeach; ?>
 
               <?php if ($captchaEnabled): ?>
-                <div class="mb-3">
+                <div class="mb-4">
                   <div class="g-recaptcha" data-sitekey="<?php echo cms_h($captchaSiteKey); ?>"></div>
                 </div>
               <?php endif; ?>
