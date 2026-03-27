@@ -12,6 +12,9 @@ RewriteCond %{REQUEST_URI} ^/?\.well-known [NC,OR]
 RewriteCond %{REQUEST_URI} ^/?robots\.txt$ [NC]
 RewriteRule ^ - [L]
 
+# Redirect /wccms (with or without trailing slash) straight to the CMS dashboard.
+RewriteRule ^wccms/?$ /wccms/dashboard.php [R=302,L]
+
 # Route home page through inside.php
 RewriteRule ^$ inside.php [QSA,L]
 
