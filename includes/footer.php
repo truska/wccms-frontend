@@ -1,5 +1,23 @@
 <footer id="contact" class="site-footer">
   <?php
+  if (!function_exists('cms_render_copyright_notice')) {
+    /**
+     * Build a standard copyright notice from site preferences.
+     */
+    function cms_render_copyright_notice(string $companyName): string {
+      $currentYear = date('Y');
+      $startYear = trim((string) cms_pref('prefCopyrightStartYear', ''));
+      $yearText = $currentYear;
+
+      if ($startYear !== '' && preg_match('/^\d{4}$/', $startYear) && $startYear !== $currentYear) {
+        $yearText = $startYear . ' &mdash; ' . $currentYear;
+      }
+
+      return '&copy; ' . $yearText . ' ' . cms_h($companyName) . '. All rights reserved.';
+    }
+  }
+
+  $footerCompanyName = trim((string) cms_pref('prefCompanyName', 'ITFix'));
   $siteFooterLogo = trim((string) cms_pref('prefLogo1', 'itfix-logo-sq.png'));
   $footerServiceLinks = [];
   require_once __DIR__ . '/lib/menu.php';
@@ -47,7 +65,7 @@
   <div class="container">
     <div class="row g-4">
       <div class="col-md-6 col-lg-3">
-        <h4><?php echo cms_h(cms_pref('prefCompanyName', 'ITFix')); ?></h4>
+        <h4><?php echo cms_h($footerCompanyName); ?></h4>
         <p>Dependable technology support, tailored for small and mid-sized businesses.</p>
       </div>
       <div class="col-md-6 col-lg-3">
@@ -99,7 +117,7 @@
       </div>
     </div>
     <div class="footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-      <span>© 2026 <?php echo cms_h(cms_pref('prefCompanyName', 'ITFix')); ?>. All rights reserved.</span>
+      <span><?php echo cms_render_copyright_notice($footerCompanyName); ?></span>
       <span>Built on <a href="https://triska.com">wITeCanvas</a> — By Truska</span>
     </div>
   </div>

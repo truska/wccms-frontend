@@ -1,5 +1,26 @@
 # Deployment split: frontend + central wccms
 
+## Server Standard (Master Facts)
+- Objective: keep `wccms` standardized across sites, while avoiding accidental frontend divergence.
+- Scope for this server standardization:
+- `dev-wc.witecanvas.com`
+- `dev-mst.witecanvas.com`
+- `itfix.com`
+- live MST stack (`mst.witecanvas.com` -> `tradewood.com`)
+- Excluded from this standardization scope: `dev-ildra.witecanvas.com` (and related ildra live stack).
+- Branch policy:
+- dev environments: `wccms` from `staging`
+- live environments: `wccms` from `main`
+- Frontend safety rule:
+- do not modify shared frontend/common assets as part of routine CMS deploys
+- keep frontend deploy action strictly to pull/sync from the site's frontend repo source of truth
+- CMS safety rule:
+- standardize deploy tooling (`tools-frontend.php`, deploy scripts, DB migration set) in `wccms-backend`
+- apply additive DB migrations only; no destructive schema changes in rollout scripts
+- Path convention target:
+- preferred frontend checkout path per site root: `<site_root>/frontend`
+- if a site differs, use `prefFrontendDeployRepoPath` until path is normalized
+
 ## Goal
 - `web` repo keeps frontend/site code only.
 - `wccms` becomes its own repo, cloned inside each site as `wccms/`.

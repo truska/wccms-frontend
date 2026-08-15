@@ -1,4 +1,5 @@
 /wccms/
+/filestore/
 /stats/*
 !/stats/.htaccess
 !/stats/index.php

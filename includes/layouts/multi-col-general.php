@@ -43,7 +43,8 @@ if ($columnCount === 2) {
 ?>
 <!-- layout=multi-col-general.php layout_url=<?php echo cms_h((string) ($contentItem['layout_url'] ?? '')); ?> content_id=<?php echo cms_h((string) ($contentItem['id'] ?? '')); ?> -->
 
-<section class="services-section cms-content-block <?php echo cms_h($contentPaddingClass); ?>">
+<section class="services-section cms-content-block cms-edit-target <?php echo cms_h($contentPaddingClass); ?>">
+  <?php echo cms_render_frontend_edit_button($contentItem, ['form_id' => $contentSourceFormId ?? null]); ?>
   <div class="container">
     <?php if (($contentHeading !== '' && $contentShowHeading === 'Yes') || $contentSubheading !== ''): ?>
       <div class="section-heading text-center">

@@ -37,13 +37,7 @@ if (!empty($pageData['id']) && (int) $pageData['id'] === 1) {
 
 include __DIR__ . '/includes/footer.php';
 
-$remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
-$debugAllowed = cms_pref('prefFooterDebugOn', 'No') === 'Yes'
-  || $remoteAddr === cms_pref('prefTruskaIP', '')
-  || $remoteAddr === cms_pref('prefCoderIP', '')
-  || $remoteAddr === cms_pref('prefClientIP', '')
-  || $remoteAddr === cms_pref('prefClient1IP', '')
-  || (function_exists('cms_is_logged_in') && cms_is_logged_in());
+$debugAllowed = cms_frontend_edit_allowed();
 
 if ($debugAllowed) {
   include __DIR__ . '/includes/footer-debug.php';

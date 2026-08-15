@@ -1,0 +1,366 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Reset VS Code colors for local sites in both folder and workspace modes.
+# DB-driven keys (optional):
+# - prefPrefix (wc|mst|itfix|...)
+# - prefVSCodeSiteColor (#RRGGBB)
+# - prefVSCodeActivityColor (#RRGGBB)
+# - prefVSCodeStatusColor (#RRGGBB)
+# Usage:
+#   tools/SetColours all
+#   tools/SetColours wc|mst|itfix|ugpsc|olitime
+#   tools/SetColours --live all
+
+DEFAULT_STATUS_BG="#ff8c00"
+DEFAULT_STATUS_FG="#1f1300"
+LIVE_STATUS_BG="#cc0000"
+LIVE_STATUS_FG="#ffffff"
+SCRIPT_ENV_MODE="dev"
+
+is_hex_color() {
+  [[ "$1" =~ ^#[0-9A-Fa-f]{6}$ ]]
+}
+
+site_defaults_by_prefix() {
+  local prefix="$1"
+  case "$prefix" in
+    wc)
+      echo "#006400|#004d00|#005700|#c9e8c9"
+      ;;
+    mst)
+      echo "#69654e|#4f4c3a|#54503e|#e8dfbf"
+      ;;
+    itfix)
+      echo "#4c76c5|#355693|#3a5b97|#d7e4ff"
+      ;;
+    ugpsc)
+      echo "#734f96|#5d3f79|#734f96|#eadff4"
+      ;;
+    olitime)
+      echo "#734f96|#5d3f79|#734f96|#eadff4"
+      ;;
+    *)
+      echo "#734f96|#5d3f79|#734f96|#eadff4"
+      ;;
+  esac
+}
+
+infer_prefix_from_host() {
+  local host="$1"
+  case "$host" in
+    dev-wc.witecanvas.com) echo "wc" ;;
+    dev-mst.witecanvas.com) echo "mst" ;;
+    itfix.com) echo "itfix" ;;
+    dev-ugpsc.witecanvas.com) echo "ugpsc" ;;
+    ugpsc.com) echo "ugpsc" ;;
+    dev-olitime.witecanvas.com) echo "olitime" ;;
+    *) echo "" ;;
+  esac
+}
+
+infer_default_status() {
+  if [[ "$SCRIPT_ENV_MODE" == "live" ]]; then
+    echo "${LIVE_STATUS_BG}|${LIVE_STATUS_FG}"
+    return
+  fi
+  echo "${DEFAULT_STATUS_BG}|${DEFAULT_STATUS_FG}"
+}
+
+load_db_pref_values() {
+  local site_root="$1"
+  local site_base
+  site_base="$(dirname "$site_root")"
+
+  php -r '
+$siteBase = $argv[1] ?? "";
+$out = [
+  "prefPrefix" => "",
+  "prefVSCodeSiteColor" => "",
+  "prefVSCodeActivityColor" => "",
+  "prefVSCodeStatusColor" => "",
+  "prefVSCodeStatusForeground" => "",
+];
+$dbcon = $siteBase . "/private/dbcon.php";
+$prefsLib = $siteBase . "/web/includes/lib/cms_prefs.php";
+if (!file_exists($dbcon) || !file_exists($prefsLib)) {
+  foreach ($out as $k => $v) { echo $k, "=", $v, "\n"; }
+  exit(0);
+}
+require $dbcon;
+require $prefsLib;
+if (!isset($DB_OK) || !$DB_OK || !isset($pdo) || !($pdo instanceof PDO)) {
+  foreach ($out as $k => $v) { echo $k, "=", $v, "\n"; }
+  exit(0);
+}
+$table = cms_preferences_table();
+if (!$table) {
+  foreach ($out as $k => $v) { echo $k, "=", $v, "\n"; }
+  exit(0);
+}
+$keys = array_keys($out);
+$in = implode(",", array_fill(0, count($keys), "?"));
+$sql = "SELECT name, value FROM {$table} WHERE archived = 0 AND name IN ({$in})";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($keys);
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+  $name = (string)($row["name"] ?? "");
+  if (array_key_exists($name, $out)) {
+    $out[$name] = trim((string)($row["value"] ?? ""));
+  }
+}
+foreach ($out as $k => $v) {
+  echo $k, "=", $v, "\n";
+}
+' "$site_base" 2>/dev/null || true
+}
+
+write_vscode_settings() {
+  local file="$1"
+  local window_label="$2"
+  local title_bg="$3"
+  local title_inactive_bg="$4"
+  local activity_bg="$5"
+  local status_bg="$6"
+  local status_fg="$7"
+  local title_inactive_fg="$8"
+
+  cat > "$file" <<EOF_JSON
+{
+  "window.title": "${window_label} - \${activeEditorShort}",
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "${title_bg}",
+    "titleBar.activeForeground": "#ffffff",
+    "titleBar.inactiveBackground": "${title_inactive_bg}",
+    "titleBar.inactiveForeground": "${title_inactive_fg}",
+    "activityBar.background": "${activity_bg}",
+    "activityBar.foreground": "#ffffff",
+    "activityBar.inactiveForeground": "${title_inactive_fg}",
+    "activityBar.activeBorder": "#ffffff",
+    "statusBar.background": "${status_bg}",
+    "statusBar.foreground": "${status_fg}",
+    "statusBar.noFolderBackground": "${status_bg}",
+    "statusBar.noFolderForeground": "${status_fg}",
+    "statusBar.debuggingBackground": "#ffd199",
+    "statusBar.debuggingForeground": "#1f1300",
+    "statusBarItem.hoverBackground": "#cc7000",
+    "statusBarItem.prominentBackground": "#b86400",
+    "statusBarItem.prominentHoverBackground": "#9c5600",
+    "statusBarItem.remoteBackground": "#b86400",
+    "statusBarItem.remoteForeground": "#ffffff"
+  }
+}
+EOF_JSON
+}
+
+write_workspace_settings() {
+  local file="$1"
+  local window_label="$2"
+  local title_bg="$3"
+  local title_inactive_bg="$4"
+  local activity_bg="$5"
+  local status_bg="$6"
+  local status_fg="$7"
+  local title_inactive_fg="$8"
+
+  cat > "$file" <<EOF_JSON
+{
+  "folders": [
+    {
+      "name": "web",
+      "path": "."
+    },
+    {
+      "name": "private",
+      "path": "../private"
+    },
+    {
+      "name": "log",
+      "path": "../log"
+    }
+  ],
+  "settings": {
+    "window.title": "${window_label} - \${activeEditorShort}",
+    "workbench.colorCustomizations": {
+      "titleBar.activeBackground": "${title_bg}",
+      "titleBar.activeForeground": "#ffffff",
+      "titleBar.inactiveBackground": "${title_inactive_bg}",
+      "titleBar.inactiveForeground": "${title_inactive_fg}",
+      "activityBar.background": "${activity_bg}",
+      "activityBar.foreground": "#ffffff",
+      "activityBar.inactiveForeground": "${title_inactive_fg}",
+      "activityBar.activeBorder": "#ffffff",
+      "statusBar.background": "${status_bg}",
+      "statusBar.foreground": "${status_fg}",
+      "statusBar.noFolderBackground": "${status_bg}",
+      "statusBar.noFolderForeground": "${status_fg}",
+      "statusBar.debuggingBackground": "#ffd199",
+      "statusBar.debuggingForeground": "#1f1300",
+      "statusBarItem.hoverBackground": "#cc7000",
+      "statusBarItem.prominentBackground": "#b86400",
+      "statusBarItem.prominentHoverBackground": "#9c5600",
+      "statusBarItem.remoteBackground": "#b86400",
+      "statusBarItem.remoteForeground": "#ffffff"
+    }
+  }
+}
+EOF_JSON
+}
+
+write_site() {
+  local site_root="$1"
+  local site_host="$2"
+  local workspace_name="$3"
+
+  local vscode_file="${site_root}/.vscode/settings.json"
+  local workspace_file="${site_root}/${site_host}.code-workspace"
+  local git_exclude="${site_root}/.git/info/exclude"
+
+  mkdir -p "${site_root}/.vscode"
+
+  local db_prefix=""
+  local pref_site_color=""
+  local pref_activity_color=""
+  local pref_status_color=""
+  local pref_status_fg=""
+
+  local pref_lines
+  pref_lines="$(load_db_pref_values "$site_root")"
+  while IFS='=' read -r key val; do
+    case "$key" in
+      prefPrefix) db_prefix="$val" ;;
+      prefVSCodeSiteColor) pref_site_color="$val" ;;
+      prefVSCodeActivityColor) pref_activity_color="$val" ;;
+      prefVSCodeStatusColor) pref_status_color="$val" ;;
+      prefVSCodeStatusForeground) pref_status_fg="$val" ;;
+    esac
+  done <<< "$pref_lines"
+
+  local prefix
+  local inferred_prefix
+  inferred_prefix="$(infer_prefix_from_host "$site_host")"
+  prefix="${db_prefix}"
+  if [[ -z "$prefix" ]]; then
+    prefix="$inferred_prefix"
+  fi
+  if [[ -n "$inferred_prefix" && -n "$db_prefix" && "$db_prefix" != "$inferred_prefix" ]]; then
+    # Mismatched prefix usually means copied dbcon/prefs from another site.
+    # Prefer host-derived identity and ignore DB color overrides until DB is corrected.
+    prefix="$inferred_prefix"
+    pref_site_color=""
+    pref_activity_color=""
+    pref_status_color=""
+    pref_status_fg=""
+  fi
+
+  local defaults
+  defaults="$(site_defaults_by_prefix "$prefix")"
+  local default_title_bg default_title_inactive_bg default_activity_bg default_inactive_fg
+  IFS='|' read -r default_title_bg default_title_inactive_bg default_activity_bg default_inactive_fg <<< "$defaults"
+
+  local default_status
+  default_status="$(infer_default_status)"
+  local default_status_bg default_status_fg
+  IFS='|' read -r default_status_bg default_status_fg <<< "$default_status"
+
+  local title_bg="$default_title_bg"
+  local title_inactive_bg="$default_title_inactive_bg"
+  local activity_bg="$default_activity_bg"
+  local title_inactive_fg="$default_inactive_fg"
+  local status_bg="$default_status_bg"
+  local status_fg="$default_status_fg"
+  local env_label="LOCAL"
+  if [[ "$SCRIPT_ENV_MODE" == "live" ]]; then
+    env_label="LIVE"
+  fi
+  local window_label="${workspace_name} - ${env_label}"
+
+  if is_hex_color "$pref_site_color"; then
+    title_bg="$pref_site_color"
+  fi
+  if is_hex_color "$pref_activity_color"; then
+    activity_bg="$pref_activity_color"
+  fi
+  if is_hex_color "$pref_status_color"; then
+    status_bg="$pref_status_color"
+  fi
+  if is_hex_color "$pref_status_fg"; then
+    status_fg="$pref_status_fg"
+  fi
+
+  write_vscode_settings "$vscode_file" "$window_label" "$title_bg" "$title_inactive_bg" "$activity_bg" "$status_bg" "$status_fg" "$title_inactive_fg"
+  write_workspace_settings "$workspace_file" "$window_label" "$title_bg" "$title_inactive_bg" "$activity_bg" "$status_bg" "$status_fg" "$title_inactive_fg"
+
+  if [ -f "${git_exclude}" ]; then
+    grep -qxF ".vscode/settings.json" "${git_exclude}" || echo ".vscode/settings.json" >> "${git_exclude}"
+    grep -qxF "${site_host}.code-workspace" "${git_exclude}" || echo "${site_host}.code-workspace" >> "${git_exclude}"
+  fi
+
+  chmod 444 "${vscode_file}" "${workspace_file}"
+
+  # If an open VS Code window rewrites the workspace quickly, retry once.
+  if ! grep -q '"titleBar.activeBackground"' "${workspace_file}"; then
+    chmod 644 "${workspace_file}" "${vscode_file}" || true
+    sleep 1
+    write_vscode_settings "$vscode_file" "$window_label" "$title_bg" "$title_inactive_bg" "$activity_bg" "$status_bg" "$status_fg" "$title_inactive_fg"
+    write_workspace_settings "$workspace_file" "$window_label" "$title_bg" "$title_inactive_bg" "$activity_bg" "$status_bg" "$status_fg" "$title_inactive_fg"
+    chmod 444 "${vscode_file}" "${workspace_file}"
+  fi
+
+  echo "Applied colors for ${site_host} (prefix=${prefix:-unknown}, status=${status_bg})"
+}
+
+apply_by_alias() {
+  local alias="$1"
+  case "${alias}" in
+    wc)
+      write_site "/var/www/dev-wc.witecanvas.com/web" "dev-wc.witecanvas.com" "WC"
+      ;;
+    mst)
+      write_site "/var/www/dev-mst.witecanvas.com/web" "dev-mst.witecanvas.com" "MST"
+      ;;
+    itfix)
+      write_site "/var/www/itfix.com/web" "itfix.com" "ITFIX"
+      ;;
+    ugpsc)
+      write_site "/var/www/dev-ugpsc.witecanvas.com/web" "dev-ugpsc.witecanvas.com" "UGPSC"
+      ;;
+    olitime)
+      write_site "/var/www/dev-olitime.witecanvas.com/web" "dev-olitime.witecanvas.com" "OLITIME"
+      ;;
+    *)
+      echo "Unknown site alias: ${alias}" >&2
+      echo "Use: wc | mst | itfix | ugpsc | olitime | all" >&2
+      exit 1
+      ;;
+  esac
+}
+
+main() {
+  local target="${1:-all}"
+  if [[ "$target" == "--live" ]]; then
+    SCRIPT_ENV_MODE="live"
+    target="${2:-all}"
+  elif [[ "$target" == "--dev" ]]; then
+    SCRIPT_ENV_MODE="dev"
+    target="${2:-all}"
+  fi
+  case "${target}" in
+    all)
+      apply_by_alias wc
+      apply_by_alias mst
+      apply_by_alias itfix
+      apply_by_alias ugpsc
+      apply_by_alias olitime
+      ;;
+    wc|mst|itfix|ugpsc|olitime)
+      apply_by_alias "${target}"
+      ;;
+    *)
+      echo "Usage: tools/SetColours [--dev|--live] [all|wc|mst|itfix|ugpsc|olitime]" >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

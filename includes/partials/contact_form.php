@@ -2,7 +2,12 @@
 $contactSlug = $contactSlug ?? 'contact-itfix';
 ?>
 <main class="contact-page">
-  <section class="contact-hero">
+  <section class="contact-hero cms-edit-target">
+    <?php
+      echo (isset($contentItem) && is_array($contentItem))
+        ? cms_render_frontend_edit_button($contentItem, ['form_id' => $contentSourceFormId ?? null])
+        : '';
+    ?>
     <div class="container">
       <div class="row align-items-center g-4">
         <div class="col-lg-6">

@@ -100,7 +100,8 @@ foreach ($pageContentItems as $contentItem) {
   $subheading = $contentItem['subheading'] ?? '';
   $body = cms_apply_shortcodes($contentItem['text1'] ?? $contentItem['text'] ?? $contentItem['content'] ?? '');
   ?>
-  <section class="content-block">
+  <section class="content-block cms-edit-target">
+    <?php echo cms_render_frontend_edit_button($contentItem); ?>
     <div class="container">
       <?php if ($heading !== ''): ?>
         <h2><?php echo cms_h($heading); ?></h2>

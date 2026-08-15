@@ -13,7 +13,8 @@ $cardItems = array_filter(array_map('trim', preg_split('/\\r?\\n/', $cardListRaw
 ?>
 <!-- layout=itfixintro.php layout_url=<?php echo cms_h((string) ($contentItem['layout_url'] ?? '')); ?> content_id=<?php echo cms_h((string) ($contentItem['id'] ?? '')); ?> -->
 
-<section id="intro" class="hero-section cms-content-block <?php echo cms_h($contentPaddingClass); ?>">
+<section id="intro" class="hero-section cms-content-block cms-edit-target <?php echo cms_h($contentPaddingClass); ?>">
+  <?php echo cms_render_frontend_edit_button($contentItem, ['form_id' => $contentSourceFormId ?? null]); ?>
   <div class="container">
     <div class="row align-items-center g-4">
       <div class="col-lg-6">
